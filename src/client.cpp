@@ -14,6 +14,8 @@
 #include <client.hpp>
 #include <common_macros.hpp>
 
+void receive_from_server(int);
+
 int main(int argc, char** argv) {
     int client_sockfd = socket(PF_INET, SOCK_STREAM, 0);
 
@@ -31,10 +33,28 @@ int main(int argc, char** argv) {
         exit(connect_status);
     }
 
+    char username[40] = { };
+    std::cout << "Your Username: ";
+    std::cin >> username;
+
+    send(client_sockfd, (void*)username, 40, 0);
+
+    std::thread server_listener(receive_from_server, client_sockfd);
+
+    char send_buffer[MAX_BUF_SIZE] = { };
+    while (true) {
+        std::string str_buf;
+        std::getline(std::cin, str_buf);
+        std::strcpy(send_buffer, str_buf.c_str());
+        send(client_sockfd, (void*)send_buffer, 1000, 0);
+        memset((void*)send_buffer, 0, sizeof(send_buffer));
+    }
+}
+
+void receive_from_server(int client_sockfd) {
     char recv_buffer[MAX_BUF_SIZE] = { };
-
-    recv(client_sockfd, (void*)recv_buffer, 1000, 0);
-
-    std::cout << "Message from server: ";
-    std::cout << recv_buffer << std::endl;
+    while (true) {
+        recv(client_sockfd, (void*)recv_buffer, 1000, 0);
+        std::cout << recv_buffer << std::endl;
+    }
 }

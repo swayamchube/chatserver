@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 #include <thread>
+#include <map>
+#include <functional>
 
 // Networking related headers
 #include <sys/socket.h>
@@ -23,8 +25,8 @@ private:
     void handle_client(client_info);
 private:
     int server_sockfd;
-    int min_available_id = 1;
     std::vector<std::pair<client_info, int>> clients;
+    std::map<int, std::string> usernames;
 };
 
 ////////////////////////////////////////////////
@@ -61,7 +63,8 @@ void Server::run() {
 
         // do things with this newly obtained file descriptor
         client_info client = {conn_sockfd, client_addr};
-        clients.push_back(std::make_pair(client, min_available_id++));
+        clients.push_back(std::make_pair(client, ntohs(client_addr.sin_port)));
+
 
         std::thread client_thread([this, client]{handle_client(client);});
         client_thread.detach();
@@ -76,19 +79,24 @@ void Server::handle_client(client_info client) {
     char send_buffer[MAX_BUF_SIZE] = { };
     char recv_buffer[MAX_BUF_SIZE] = { };
 
+    recv(client.conn_sockfd, (void*)recv_buffer, 40, 0);
+    usernames[ntohs(client.client_addr.sin_port)] = std::string(recv_buffer);
+    std::cout << recv_buffer << " has joined\n";
+
     while (true) {
-        // read from client and reply
+        recv(client.conn_sockfd, (void*)recv_buffer, 1000, 0);
+        message_all(recv_buffer, ntohs(client.client_addr.sin_port));
     }
 }
 
 void Server::message_all(const char* msg, int sender_id) {
+    std::string sender_username = usernames[sender_id];
     for (auto p: clients) {
         if (sender_id == p.second) continue;
         int conn_sockfd = p.first.conn_sockfd;
 
-        char stringified_id[10] = { };
-        std::sprintf(stringified_id, "%d: ", sender_id);
-
-        send(conn_sockfd, (void*)msg, std::strlen(msg) + 1, 0);
+        char message[1500] = { };
+        std::sprintf(message, "%s: %s", sender_username.c_str(), msg);
+        send(conn_sockfd, (void*)message, std::strlen(message) + 1, 0);
     }
 }
